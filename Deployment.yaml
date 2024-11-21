@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: functional-stockscan
+  namespace: pv
+spec:
+  #replicas: 1
+  selector:
+    matchLabels:
+      run: functional-stockscan
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        run: functional-stockscan
+    spec:
+      containers:
+      - name: functional-stockscan
+        image: 053132126130.dkr.ecr.ap-south-1.amazonaws.com/pv-dev-stockscan-functional:latest
+        imagePullPolicy: Always
+        # env:
+        #  - name: SET_ENVIRONMENT
+        #    value: "PRODUCTION"
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - mountPath: /var/log/stockscan-pv/core/
+          name: ephemeral-storage
+        - mountPath: /var/opt/
+          name: persistent-storage
+        # resources:
+        #   requests:
+        #     memory: "500Mi"
+        #     cpu: "500m"
+        #   limits:
+        #     memory: "750Mi"
+        #     cpu: "750m"
+        startupProbe:
+          httpGet:
+            path: /healthz/
+            port: 8000
+          initialDelaySeconds: 2
+          failureThreshold: 3
+          periodSeconds: 5
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /healthz/
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 3
+          periodSeconds: 60
+          successThreshold: 1
+          timeoutSeconds: 10
+        readinessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /healthz/
+            port: 8000
+            scheme: HTTP
+          initialDelaySeconds: 2
+          periodSeconds: 30
+          successThreshold: 2
+          timeoutSeconds: 20
+
+      securityContext:
+        fsGroup: 1001
+        runAsGroup: 1001
+        runAsUser: 1001
+      restartPolicy: Always
+      volumes:
+      - name: ephemeral-storage
+        emptyDir:
+          sizeLimit: 1024Mi
+      - name: persistent-storage
+        persistentVolumeClaim:
+          claimName: efs-claim
+      nodeSelector:
+        kubernetes.io/arch: amd64
+
+      hostAliases:
+      - hostnames:
+        - "crmdmssbox.inservices.tatamotors.com"
+        ip: "172.24.54.92"
+      - hostnames:
+        - "carsdmscsbox.inservices.tatamotors.com"
+        ip: "172.19.65.17"
